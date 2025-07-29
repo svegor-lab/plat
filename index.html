@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TOCABA – Toponymic Cartography of the Balkans</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+  <style>
+    body { margin:0; font-family:Arial,sans-serif; }
+    #header { padding:10px; background:#2c3e50; color:white; text-align:center; }
+    #controls { padding:10px; background:#ecf0f1; display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+    #map { height:calc(100vh - 160px); }
+    .filter-group { display:flex; gap:8px; align-items:center; }
+    #stats { margin-left:auto; text-align:right; }
+    .legend { background:white; padding:6px; line-height:1.5; }
+    .legend i { width:12px; height:12px; float:left; margin-right:4px; opacity:0.8; }
+  </style>
+</head>
+<body>
+  <div id="header"><h1>TOCABA – Toponymic Cartography of the Balkans</h1></div>
+  <div id="controls">
+    <label for="countrySelect">Country:</label>
+    <select id="countrySelect"><option value="all">— All —</option></select>
+
+    <div class="filter-group" id="typeFilters">
+      <label><input type="checkbox" value="city"> City</label>
+      <label><input type="checkbox" value="town"> Town</label>
+      <label><input type="checkbox" value="village"> Village</label>
+      <label><input type="checkbox" value="hamlet"> Hamlet</label>
+    </div>
+
+    <div class="filter-group" id="morphFilters">
+      <label><input type="checkbox" value="ево"> -ево</label>
+      <label><input type="checkbox" value="ово"> -ово</label>
+      <label><input type="checkbox" value="иев"> -иев</label>
+    </div>
+
+    <label for="searchInput">Search:</label>
+    <input type="text" id="searchInput" placeholder="Name...">
+
+    <div class="filter-group">
+      <label><input type="checkbox" id="heatmapToggle"> Heatmap</label>
+      <label><input type="checkbox" id="adminToggle"> Admin boundaries</label>
+      <button id="exportGeo">Export GeoJSON</button>
+      <button id="exportCSV">Export CSV</button>
+    </div>
+
+    <div id="stats"><strong>Statistics:</strong> Loading...</div>
+  </div>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+  <script>
+    // Map & base layers
+    const map = L.map('map').setView([42,21],6);
+    const OSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(map);
+    const SAT = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Esri'});
+    const TER = L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg',{subdomains:'abcd',attribution:'Stamen'});
+    L.control.layers({OSM,Satellite:SAT,Terrain:TER}).addTo(map);
+
+    // Data & layers
+    const clusters = L.markerClusterGroup().addTo(map);
+    let heatLayer;
+    const adminLayer = L.geoJSON(null,{style:{color:'#555',weight:2,fill:false}});
+
+    // Legend control
+    const legend = L.control({position:'bottomright'});
+    legend.onAdd = ()=>{
+      const div = L.DomUtil.create('div','legend');
+      div.innerHTML = '<i style="background:red"></i> Toponyms<br>'+
+                      '<hr><strong>Heatmap</strong><br>'+
+                      '<i style="background:rgba(255,0,0,0.5)"></i> Density<br>'+
+                      '<hr><strong>Admin boundaries</strong><br>'+
+                      '<i style="background:none;border:2px solid #555"></i> Boundary';
+      return div;
+    };
+    legend.addTo(map);
+
+    // Countries list
+    const files = {"Albania":"Topo_Albania.geojson","Bosnia":"Topo_Bosnia_and_Herzegovina.geojson",
+                   "Bulgaria":"Topo_Bulgaria.geojson","Croatia":"Topo_Croatia.geojson",
+                   "Greece":"Topo_Greece.geojson","Hungary":"Topo_Hungary.geojson",
+                   "Kosovo":"Topo_Kosovo.geojson","Montenegro":"Topo_Monte_Negro.geojson",
+                   "North Macedonia":"Topo_North_Macedonia.geojson","Romania":"Topo_Romania.geojson",
+                   "Serbia":"Topo_Serbia.geojson","Slovenia":"Topo_Slovenia.geojson"};
+    const select = document.getElementById('countrySelect');
+    Object.keys(files).forEach(k=>{const o=document.createElement('option');o.value=files[k];o.text=k;select.add(o);});
+
+    // Controls
+    const typeCB = [...document.querySelectorAll('#typeFilters input')];
+    const morphCB = [...document.querySelectorAll('#morphFilters input')];
+    const searchInput = document.getElementById('searchInput');
+    const heatCB = document.getElementById('heatmapToggle');
+    const adminCB = document.getElementById('adminToggle');
+    const exportGeo = document.getElementById('exportGeo');
+    const exportCSV = document.getElementById('exportCSV');
+    const statsDiv = document.getElementById('stats');
+    let lastFeatures = [];
+
+    async function loadCountry(file){
+      clusters.clearLayers(); if(heatLayer) map.removeLayer(heatLayer);
+      lastFeatures = [];
+      const arr = file==='all'?Object.values(files):[file];
+      const types = typeCB.filter(cb=>cb.checked).map(cb=>cb.value);
+      const morphs = morphCB.filter(cb=>cb.checked).map(cb=>cb.value);
+      const term = searchInput.value.toLowerCase();
+      let dataAll = [];
+
+      for(const f of arr){
+        const r = await fetch(f); if(!r.ok) continue;
+        const j = await r.json(); dataAll = dataAll.concat(j.features);
+      }
+      // Filter
+      const filtered = dataAll.filter(ft=>{
+        const p=ft.properties.place||'';
+        const n=(ft.properties.name||'').toLowerCase();
+        const okType = types.length===0||types.includes(p);
+        const okTerm = !term||n.includes(term);
+        const okMorph = morphs.length===0||morphs.some(sfx=>n.endsWith(sfx));
+        return okType && okTerm && okMorph;
+      });
+      lastFeatures = filtered;
+
+      // Stats
+      const counts={total:filtered.length};
+      statsDiv.innerHTML=`<strong>Statistics:</strong> Total: ${counts.total}`;
+
+      // Render markers
+      filtered.forEach(ft=>{
+        const c=L.circleMarker([ft.geometry.coordinates[1], ft.geometry.coordinates[0]],{radius:5,fillColor:'red',color:'#000',weight:1,fillOpacity:0.8});
+        const n=ft.properties.name||'';
+        const label=`<span style="color:red"><b>${n.slice(0,3)}</b></span><span style="color:black">${n.slice(3)}</span>`;
+        c.bindTooltip(label,{permanent:true,direction:'top',className:'custom-label'});
+        c.bindPopup(`<strong>${n}</strong><br>Type: ${ft.properties.place||'–'}`);
+        clusters.addLayer(c);
+      });
+
+      if(heatCB.checked){
+        const points = filtered.map(ft=>[ft.geometry.coordinates[1],ft.geometry.coordinates[0],1]);
+        heatLayer=L.heatLayer(points,{radius:25,blur:15,maxZoom:17}).addTo(map);
+      }
+      if(adminCB.checked){
+        if(!map.hasLayer(adminLayer)){
+          const res=await fetch('admin_boundaries.geojson');
+          if(res.ok){ const adm=await res.json(); adminLayer.addData(adm).addTo(map);} }
+      } else { map.removeLayer(adminLayer); }
+
+      map.fitBounds(clusters.getBounds(),{maxZoom:12});
+    }
+
+    // Export handlers
+    exportGeo.onclick=_=>{
+      const fc={type:'FeatureCollection',features:lastFeatures};
+      const blob=new Blob([JSON.stringify(fc)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='export.geojson';a.click();
+    };
+    exportCSV.onclick=_=>{
+      const rows=['name,lat,lng,place'];
+      lastFeatures.forEach(ft=>rows.push(`"${ft.properties.name}"`,
+        `${ft.geometry.coordinates[1]},${ft.geometry.coordinates[0]},${ft.properties.place||''}`));
+      const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='export.csv';a.click();
+    };
+
+    // Events
+    [select,...typeCB,...morphCB].forEach(el=>el.addEventListener('change',()=>loadCountry(select.value)));
+    searchInput.addEventListener('input',()=>loadCountry(select.value));
+    heatCB.addEventListener('change',()=>loadCountry(select.value));
+    adminCB.addEventListener('change',()=>loadCountry(select.value));
+
+    // Initial
+    select.selectedIndex=0;
+    loadCountry(select.value);
+  </script>
+</body>
+</html>

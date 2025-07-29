@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TOCABA – Toponymic Cartography of the Balkans</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; }
+    #header { padding: 10px; background: #2c3e50; color: white; text-align: center; }
+    #controls { padding: 10px; background: #ecf0f1; display: flex; align-items: center; gap: 15px; }
+    #map { height: calc(100vh - 120px); }
+    .custom-label { font-size: 12px; font-family: Arial; }
+    .filter-group { display: flex; gap: 10px; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h1>TOCABA – Toponymic Cartography of the Balkans</h1>
+  </div>
+  <div id="controls">
+    <label for="countrySelect">Select Country:</label>
+    <select id="countrySelect"><option value="all">— All —</option></select>
+
+    <div class="filter-group" id="typeFilters">
+      <label><input type="checkbox" value="city" checked> City</label>
+      <label><input type="checkbox" value="town" checked> Town</label>
+      <label><input type="checkbox" value="village" checked> Village</label>
+      <label><input type="checkbox" value="hamlet" checked> Hamlet</label>
+    </div>
+
+    <label for="searchInput">Search:</label>
+    <input type="text" id="searchInput" placeholder="Search name...">
+  </div>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+  <script>
+    // Initialize map
+    const map = L.map('map').setView([42, 21], 6);
+    const baseOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18, attribution:'&copy; OpenStreetMap'}).addTo(map);
+    const baseSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles &copy; Esri'});
+    const baseTerrain = L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg',{subdomains:'abcd', attribution:'Map tiles by Stamen Design, under CC BY 3.0'});
+    L.control.layers({OSM:baseOSM,Satellite:baseSat,Terrain:baseTerrain}).addTo(map);
+
+    const clusters = L.markerClusterGroup().addTo(map);
+    const countries = {"Albania":"Topo_Albania.geojson","Bosnia and Herzegovina":"Topo_Bosnia_and_Herzegovina.geojson","Bulgaria":"Topo_Bulgaria.geojson","Croatia":"Topo_Croatia.geojson","Greece":"Topo_Greece.geojson","Hungary":"Topo_Hungary.geojson","Kosovo":"Topo_Kosovo.geojson","Montenegro":"Topo_Monte_Negro.geojson","North Macedonia":"Topo_North_Macedonia.geojson","Romania":"Topo_Romania.geojson","Serbia":"Topo_Serbia.geojson","Slovenia":"Topo_Slovenia.geojson"};
+
+    const select = document.getElementById('countrySelect');
+    for(let c in countries){ let o=document.createElement('option');o.value=countries[c];o.text=c;select.add(o);}    
+    const checkboxes = Array.from(document.querySelectorAll('#typeFilters input'));
+    const searchInput = document.getElementById('searchInput');
+
+    function loadCountry(file){
+      clusters.clearLayers();
+      const files = file==='all'?Object.values(countries):[file];
+      const types = checkboxes.filter(cb=>cb.checked).map(cb=>cb.value);
+      const searchTerm = searchInput.value.toLowerCase();
+      files.forEach(f=>{
+        fetch(f).then(r=>{if(!r.ok)throw new Error(r.statusText);return r.json();})
+        .then(json=>{
+          const filtered = {...json, features: json.features.filter(feat=>{
+            const p = feat.properties.place||'';
+            const name = feat.properties.name||'';
+            return types.includes(p) && name.toLowerCase().includes(searchTerm);
+          })};
+          L.geoJSON(filtered,{pointToLayer:(ft,latlng)=>L.circleMarker(latlng,{radius:5,fillColor:'red',color:'#000',weight:1,fillOpacity:0.8}),onEachFeature:(ft,layer)=>{const n=ft.properties.name||'[n/a]';const first3=n.slice(0,3),rest=n.slice(3);layer.bindTooltip(`<span style="color:red"><b>${first3}</b></span><span style="color:black">${rest}</span>`,{permanent:true,direction:'top',className:'custom-label'});layer.bindPopup(`<strong>${n}</strong><br>Type: ${ft.properties.place||'–'}`);}}).addTo(clusters);
+        }).catch(e=>console.error('Error loading',f,e));
+      });
+      setTimeout(()=>{if(clusters.getLayers().length)map.fitBounds(clusters.getBounds(),{maxZoom:12});},500);
+    }
+
+    select.addEventListener('change',()=>loadCountry(select.value));
+    checkboxes.forEach(cb=>cb.addEventListener('change',()=>loadCountry(select.value)));
+    searchInput.addEventListener('input',()=>loadCountry(select.value));
+    select.selectedIndex=0;loadCountry(select.value);
+  </script>
+</body>
+</html>
