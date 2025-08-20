@@ -1,234 +1,248 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8"/>
   <title>TOCABA – Toponymic Cartography of the Balkans</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
   <style>
-    body { margin:0; font-family:Arial,sans-serif; }
-    #header { padding:10px; background:#2c3e50; color:white; text-align:center; }
-    #controls { padding:10px; background:#ecf0f1; display:flex; flex-wrap:wrap; align-items:flex-start; gap:10px; }
-    #map { height:calc(100vh - 180px); }
-    .filter-group { display:flex; flex-direction:column; gap:4px; }
-    .legend { background:white; padding:6px; line-height:1.5; }
-    .legend i { width:12px; height:12px; float:left; margin-right:4px; opacity:0.8; }
-    #stats { margin-left:auto; text-align:right; }
-    .hidden { display: none; }
-    button {
-      padding: 6px 12px;
-      background-color: #3498db;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
+    body{margin:0}
+    header{background:#2c3e50;color:#fff;padding:6px 12px;text-align:center;font-size:15px}
+    /* Sidebar */
+    #sidebar{
+      position:fixed;top:0;left:0;width:260px;height:100vh;background:#f8f9fa;border-right:1px solid #ddd;
+      padding:14px;overflow-y:auto;z-index:1100;transform:translateX(-270px);transition:.25s;
     }
-    button:hover {
-      background-color: #2980b9;
+    #sidebar.show{transform:translateX(0)}
+    #toggleBtn{
+      position:fixed;top:44px;left:10px;z-index:1200;background:#0d6efd;border:none;color:#fff;padding:7px 12px;border-radius:4px
     }
+    /* Map */
+    #map{height:calc(100vh - 32px);margin-top:32px}
+    /* Force zoom to right */
+    .leaflet-top.leaflet-left{display:none!important;}
+    .leaflet-top.leaflet-right{top:60px;right:14px}
+    /* Suffix list grid */
+    #suffixList{display:grid;grid-template-columns:1fr 1fr;gap:4px;max-height:240px;overflow-y:auto}
+    #suffixList .form-check{margin-bottom:2px}
   </style>
 </head>
 <body>
-  <div id="header"><h1>TOCABA – Toponymic Cartography of the Balkans</h1></div>
-  <div id="controls">
-    <label for="countrySelect">Country:</label>
-    <select id="countrySelect"><option value="all">— All —</option></select>
+<header>TOCABA – Toponymic Cartography of the Balkans</header>
+<button id="toggleBtn">☰</button>
 
-    <label for="searchInput">Search:</label>
-    <input type="text" id="searchInput" placeholder="Name...">
-
-    <button onclick="toggleSuffixFilters()">Филтри по суфикси ⬇</button>
-
-    <div class="filter-group hidden" id="suffixFilters">
-      <strong>Македонски:</strong>
-      <label><input type="checkbox" value="ва"> -ва</label>
-      <label><input type="checkbox" value="ен"> -ен</label>
-      <label><input type="checkbox" value="ец"> -ец</label>
-      <label><input type="checkbox" value="еп"> -еп/-ош/-аш</label>
-      <label><input type="checkbox" value="и"> -и</label>
-      <label><input type="checkbox" value="ија"> -ија</label>
-      <label><input type="checkbox" value="ино"> -ино</label>
-      <label><input type="checkbox" value="инци"> -инци</label>
-      <label><input type="checkbox" value="ка"> -ка</label>
-      <label><input type="checkbox" value="ица"> -ица</label>
-      <label><input type="checkbox" value="ич"> -ич</label>
-      <label><input type="checkbox" value="иште"> -иште</label>
-      <label><input type="checkbox" value="ште"> -ште/-шите/-шита</label>
-      <label><input type="checkbox" value="јак"> -јак</label>
-      <label><input type="checkbox" value="јани"> -јани</label>
-      <label><input type="checkbox" value="је"> -је</label>
-      <label><input type="checkbox" value="ник"> -ник</label>
-      <label><input type="checkbox" value="ница"> -ница</label>
-      <label><input type="checkbox" value="ово"> -ово</label>
-      <label><input type="checkbox" value="овци"> -овци/-евци</label>
-      <label><input type="checkbox" value="от"> -от</label>
-      <label><input type="checkbox" value="ско"> -ско/-шко/-чко</label>
-      <label><input type="checkbox" value="ци"> -ци</label>
-      <label><input type="checkbox" value="че"> -че</label>
-      <label><input type="checkbox" value="чка"> -чка</label>
-      <label><input type="checkbox" value="штица"> -штица</label>
-
-      <strong>Турски:</strong>
-      <label><input type="checkbox" value="џик"> -џик</label>
-      <label><input type="checkbox" value="ли"> -ли</label>
-      <label><input type="checkbox" value="лија"> -лија</label>
-
-      <strong>Влашки:</strong>
-      <label><input type="checkbox" value="арди"> -арди</label>
-      <label><input type="checkbox" value="лај"> -лај</label>
-
-      <strong>Непознати:</strong>
-      <label><input type="checkbox" value="ле"> -ле</label>
-      <label><input type="checkbox" value="ок"> -ок</label>
-    </div>
-
-    <div class="filter-group">
-      <button id="exportGeo">Export GeoJSON</button>
-      <button id="exportCSV">Export CSV</button>
-    </div>
-
-    <div id="stats"><strong>Statistics:</strong> Loading...</div>
+<div id="sidebar" class="show"><!-- оставен отворен по default -->
+  <div class="d-grid gap-2 mb-2">
+    <button id="refreshBtn" class="btn btn-warning">Refresh</button>
   </div>
-  <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <script>
-    const map = L.map('map').setView([42, 21], 6);
-    const OSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(map);
-    const SAT = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
-    const TER = L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg', { subdomains: 'abcd', attribution: 'Stamen' });
-    L.control.layers({ OSM, Satellite: SAT, Terrain: TER }).addTo(map);
+  <div class="accordion" id="acc">
+    <!-- Countries & Search -->
+    <div class="accordion-item">
+      <h2 class="accordion-header">
+        <button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#acc1">Countries & Search</button>
+      </h2>
+      <div id="acc1" class="accordion-collapse collapse show">
+        <div class="accordion-body">
+          <select id="countrySelect" class="form-select mb-2"><option value="all">— All —</option></select>
+          <input id="searchInput" class="form-control" placeholder="Search...">
+        </div>
+      </div>
+    </div>
 
-    const clusters = L.markerClusterGroup().addTo(map);
-    const legend = L.control({ position: 'bottomright' });
-    legend.onAdd = () => {
-      const div = L.DomUtil.create('div', 'legend');
-      div.innerHTML = '<i style="background:red"></i> Toponyms';
-      return div;
-    };
-    legend.addTo(map);
+    <!-- Morphostructures (grouped) -->
+    <div class="accordion-item">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#acc2">Morphostructures</button>
+      </h2>
+      <div id="acc2" class="accordion-collapse collapse">
+        <div class="accordion-body">
+          <label class="form-label">Group</label>
+          <select id="groupSelect" class="form-select mb-2">
+            <option value="all">All</option>
+            <option value="mk">Macedonian</option>
+            <option value="tr">Turkish</option>
+            <option value="ar">Aromanian</option>
+            <option value="un">Unknown</option>
+          </select>
+          <div id="suffixList"></div>
+        </div>
+      </div>
+    </div>
 
-    const files = {
-      "Albania": "Topo_Albania.geojson",
-      "Bosnia": "Topo_Bosnia_and_Herzegovina.geojson",
-      "Bulgaria": "Topo_Bulgaria.geojson",
-      "Croatia": "Topo_Croatia.geojson",
-      "Greece": "Topo_Greece.geojson",
-      "Hungary": "Topo_Hungary.geojson",
-      "Kosovo": "Topo_Kosovo.geojson",
-      "Montenegro": "Topo_Monte_Negro.geojson",
-      "North Macedonia": "Topo_North_Macedonia.geojson",
-      "Romania": "Topo_Romania.geojson",
-      "Serbia": "Topo_Serbia.geojson",
-      "Slovenia": "Topo_Slovenia.geojson"
-    };
+    <!-- Substratum quick (checkboxes stay here if ти требаат) -->
+    <div class="accordion-item">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#acc3">Substratum</button>
+      </h2>
+      <div id="acc3" class="accordion-collapse collapse">
+        <div class="accordion-body">
+          <div class="text-muted">Turkish</div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" value="џик"><label class="form-check-label">-џик</label></div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" value="ли"><label class="form-check-label">-ли</label></div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" value="лија"><label class="form-check-label">-лија</label></div>
 
-    const select = document.getElementById('countrySelect');
-    const suffixCB = [...document.querySelectorAll('#suffixFilters input')];
-    const searchInput = document.getElementById('searchInput');
-    const exportGeo = document.getElementById('exportGeo');
-    const exportCSV = document.getElementById('exportCSV');
-    const statsDiv = document.getElementById('stats');
+          <div class="mt-2 text-muted">Aromanian</div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" value="арди"><label class="form-check-label">-арди</label></div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" value="лај"><label class="form-check-label">-лај</label></div>
 
-    Object.keys(files).forEach(k => {
-      const o = document.createElement('option');
-      o.value = files[k];
-      o.text = k;
-      select.add(o);
-    });
+          <div class="mt-2 text-muted">Unknown</div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" value="ле"><label class="form-check-label">-ле</label></div>
+          <div class="form-check"><input class="form-check-input" type="checkbox" value="ок"><label class="form-check-label">-ок</label></div>
+        </div>
+      </div>
+    </div>
 
-    let lastFeatures = [];
+    <!-- Actions -->
+    <div class="accordion-item">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#acc4">Actions</button>
+      </h2>
+      <div id="acc4" class="accordion-collapse collapse">
+        <div class="accordion-body">
+          <button id="exportGeo" class="btn btn-outline-primary mb-2 w-100">Export GeoJSON</button>
+          <button id="exportCSV" class="btn btn-outline-success w-100">Export CSV</button>
+          <div id="stats" class="small text-muted mt-2">Statistics: …</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-    function toggleSuffixFilters() {
-      const box = document.getElementById('suffixFilters');
-      box.classList.toggle('hidden');
-    }
+<div id="map"></div>
 
-    function highlightSuffix(name, suffixes) {
-      const nameLower = name.toLowerCase();
-      const match = suffixes.find(sfx => nameLower.endsWith(sfx));
-      if (!match) return name;
-      const i = nameLower.lastIndexOf(match);
-      return name.slice(0, i) + '<span style="color:red">' + name.slice(i) + '</span>';
-    }
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+<script>
+/* ----- UI basics ----- */
+const sidebar = document.getElementById('sidebar');
+document.getElementById('toggleBtn').onclick = () => sidebar.classList.toggle('show');
 
-    async function loadCountry(file) {
-      clusters.clearLayers();
-      lastFeatures = [];
-      const arr = file === 'all' ? Object.values(files) : [file];
-      const term = searchInput.value.toLowerCase();
-      const suffixes = suffixCB.filter(cb => cb.checked).map(cb => cb.value.toLowerCase());
-      let dataAll = [];
+/* ----- Map ----- */
+const map = L.map('map').setView([42,21], 7);
+const OSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(map);
+const SAT = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Esri'});
+L.control.layers({OSM, Satellite: SAT}, {}, {position:'topright'}).addTo(map);
 
-      for (const f of arr) {
-        const r = await fetch(f);
-        if (!r.ok) continue;
-        const j = await r.json();
-        dataAll = dataAll.concat(j.features);
-      }
+/* Force zoom to right */
+map.zoomControl.remove();
+L.control.zoom({position:'topright'}).addTo(map);
 
-      const filtered = dataAll.filter(ft => {
-        const n = (ft.properties.name || '').toLowerCase();
-        const okTerm = !term || n.includes(term);
-        const okSuf = suffixes.length === 0 || suffixes.some(sfx => n.endsWith(sfx));
-        return okTerm && okSuf;
-      });
+const clusters = L.markerClusterGroup().addTo(map);
 
-      lastFeatures = filtered;
-      statsDiv.innerHTML = `<strong>Statistics:</strong> Total: ${filtered.length}`;
+/* ----- Files (остави ги geojson-ите во ист фолдер) ----- */
+const files = {
+ "Albania":"Topo_Albania.geojson","Bosnia":"Topo_Bosnia_and_Herzegovina.geojson","Bulgaria":"Topo_Bulgaria.geojson",
+ "Croatia":"Topo_Croatia.geojson","Greece":"Topo_Greece.geojson","Hungary":"Topo_Hungary.geojson",
+ "Kosovo":"Topo_Kosovo.geojson","Montenegro":"Topo_Monte_Negro.geojson","North Macedonia":"Topo_North_Macedonia.geojson",
+ "Romania":"Topo_Romania.geojson","Serbia":"Topo_Serbia.geojson","Slovenia":"Topo_Slovenia.geojson"
+};
 
-      filtered.forEach(ft => {
-        const lat = ft.geometry.coordinates[1];
-        const lng = ft.geometry.coordinates[0];
-        const n = ft.properties.name || '';
-        const label = highlightSuffix(n, suffixes);
-        const c = L.circleMarker([lat, lng], {
-          radius: 5, fillColor: 'red', color: '#000', weight: 1, fillOpacity: 0.8
-        });
-        c.bindTooltip(label, { permanent: true, direction: 'top', className: 'custom-label' });
+/* Populate countries */
+const sel = document.getElementById('countrySelect');
+for (const k in files){ const o=document.createElement('option'); o.value=files[k]; o.text=k; sel.add(o); }
 
-        let popupHTML = '';
-        for (const [key, value] of Object.entries(ft.properties)) {
-          popupHTML += `<strong>${key}:</strong> ${value}<br>`;
-        }
-        c.bindPopup(popupHTML);
-        clusters.addLayer(c);
-      });
+/* Search & filters */
+const search = document.getElementById('searchInput');
+const stats  = document.getElementById('stats');
+const exportGeo = document.getElementById('exportGeo');
+const exportCSV = document.getElementById('exportCSV');
+const refreshBtn = document.getElementById('refreshBtn');
+let lastFeatures = [];
 
-      map.fitBounds(clusters.getBounds(), { maxZoom: 12 });
-    }
+/* ----- GROUPED morphostructures ----- */
+const groupSelect = document.getElementById('groupSelect');
+const suffixList  = document.getElementById('suffixList');
 
-    exportGeo.onclick = () => {
-      const fc = { type: 'FeatureCollection', features: lastFeatures };
-      const blob = new Blob([JSON.stringify(fc)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'export.geojson';
-      a.click();
-    };
+/* lists (точно како што бараше) */
+const SUF_MK = ["ва","ен","ец","еп","и","ија","ино","инци","ка","ица","ич","иште","ште","јак","јани","је","ник","ница","ово","овци","от","ско","ци","че","чка","штица"];
+// забелешка: "еп/-ош/-аш" → вредност "еп" ќе ја фатаме, а во tooltip ќе покажеме целиот запис.
+const SUF_TR = ["џик","ли","лија"];
+const SUF_AR = ["арди","лај"];
+const SUF_UN = ["ле","ок"];
 
-    exportCSV.onclick = () => {
-      const rows = ['name,lat,lng,place'];
-      lastFeatures.forEach(ft => {
-        rows.push(`"${ft.properties.name}",${ft.geometry.coordinates[1]},${ft.geometry.coordinates[0]},${ft.properties.place || ''}`);
-      });
-      const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'export.csv';
-      a.click();
-    };
+function renderSuffixes(){
+  const g = groupSelect.value;
+  let items = [];
+  if (g === 'all') items = [
+    ...SUF_MK.map(s=>({v:s, lbl:s})),
+    ...SUF_TR.map(s=>({v:s, lbl:s})),
+    ...SUF_AR.map(s=>({v:s, lbl:s})),
+    ...SUF_UN.map(s=>({v:s, lbl:s}))
+  ];
+  else if (g === 'mk') items = SUF_MK.map(s=>({v:s,lbl:s}));
+  else if (g === 'tr') items = SUF_TR.map(s=>({v:s,lbl:s}));
+  else if (g === 'ar') items = SUF_AR.map(s=>({v:s,lbl:s}));
+  else if (g === 'un') items = SUF_UN.map(s=>({v:s,lbl:s}));
 
-    [select, ...suffixCB].forEach(el => el.addEventListener('change', () => loadCountry(select.value)));
-    searchInput.addEventListener('input', () => loadCountry(select.value));
+  suffixList.innerHTML = '';
+  items.forEach(({v,lbl})=>{
+    const div = document.createElement('div'); div.className='form-check';
+    const inp = document.createElement('input'); inp.type='checkbox'; inp.className='form-check-input'; inp.value=v;
+    const lab = document.createElement('label'); lab.className='form-check-label'; lab.textContent = '-'+lbl;
+    div.appendChild(inp); div.appendChild(lab); suffixList.appendChild(div);
+    inp.addEventListener('change', () => loadCountry(sel.value)); // НЕ затвораме sidebar
+  });
+}
+groupSelect.addEventListener('change', renderSuffixes);
+renderSuffixes();
 
-    select.selectedIndex = 0;
-    loadCountry(select.value);
-  </script>
+/* Utility: highlight suffix */
+function highlightSuffix(name, suffixes){
+  const nl=name.toLowerCase();
+  const m = suffixes.find(s => nl.endsWith(s));
+  if (!m) return name;
+  const i = nl.lastIndexOf(m);
+  return name.slice(0,i) + '<span style="color:red">' + name.slice(i) + '</span>';
+}
+
+async function loadCountry(file){
+  clusters.clearLayers(); lastFeatures = [];
+  const term = search.value.toLowerCase();
+  const chosenSuffixes = [...suffixList.querySelectorAll('input:checked')].map(i=>i.value.toLowerCase());
+  const arr = (file==='all') ? Object.values(files) : [file];
+
+  let data = [];
+  for (const f of arr){ const r = await fetch(f); if (r.ok){ const j = await r.json(); data = data.concat(j.features);} }
+
+  const filtered = data.filter(ft=>{
+    const n=(ft.properties.name||'').toLowerCase();
+    const okTerm = !term || n.includes(term);
+    const okSuf  = chosenSuffixes.length===0 || chosenSuffixes.some(s=>n.endsWith(s));
+    return okTerm && okSuf;
+  });
+
+  lastFeatures = filtered;
+  stats.textContent = `Statistics: ${filtered.length}`;
+
+  filtered.forEach(ft=>{
+    const [lng,lat]=ft.geometry.coordinates;
+    const name = ft.properties.name || '';
+    const label = highlightSuffix(name, chosenSuffixes);
+    const c=L.circleMarker([lat,lng],{radius:5,fillColor:'red',color:'#000',weight:1,fillOpacity:.8});
+    let pop=''; for (const[k,v] of Object.entries(ft.properties)){ pop+=`<strong>${k}:</strong> ${v}<br>`; }
+    c.bindTooltip(label,{permanent:true,direction:'top'}).bindPopup(pop);
+    clusters.addLayer(c);
+  });
+
+  if (filtered.length) map.fitBounds(clusters.getBounds(),{maxZoom:12});
+}
+
+/* Events (без auto-close на sidebar) */
+sel.addEventListener('change', () => loadCountry(sel.value));
+search.addEventListener('input', () => loadCountry(sel.value));
+refreshBtn.addEventListener('click', () => loadCountry(sel.value));
+
+/* Exports */
+exportGeo.onclick=()=>{const b=new Blob([JSON.stringify({type:'FeatureCollection',features:lastFeatures})],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='export.geojson';a.click();}
+exportCSV.onclick=()=>{const rows=['name,lat,lng,place'];lastFeatures.forEach(ft=>rows.push(`"${ft.properties.name}",${ft.geometry.coordinates[1]},${ft.geometry.coordinates[0]},${ft.properties.place||''}`));const b=new Blob([rows.join('\n')],{type:'text/csv'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='export.csv';a.click();}
+
+/* Init */
+sel.value='all'; loadCountry('all');
+</script>
 </body>
 </html>
